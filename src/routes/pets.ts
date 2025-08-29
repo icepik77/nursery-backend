@@ -6,10 +6,26 @@ import { auth } from "../middleware/authMiddleware";
 
 const router = Router();
 
-// In-memory "DB"
-let pets: any[] = [];
+export type Pet = {
+  id: string;
+  user_id: string;   // ✅ owner of the pet
+  name?: string;
+  gender?: string;
+  birthdate?: string;
+  chip?: string;
+  breed?: string;
+  weight?: string;
+  height?: string;
+  color?: string;
+  note?: string;
+  imageUri?: string;
+  bigNote?: string;
+  category?: string;
+  pasportName?: string;
+};
 
-// ✅ Get all pets for a user
+let pets: Pet[] = [];
+
 router.get("/", auth, (req, res) => {
   const { userId } = req.query;
   if (!userId) return res.status(400).json({ error: "userId is required" });
@@ -18,7 +34,6 @@ router.get("/", auth, (req, res) => {
   res.json(userPets);
 });
 
-// ✅ Add a new pet
 router.post("/", auth, (req, res) => {
   const { user_id, ...petData } = req.body;
 
@@ -36,7 +51,6 @@ router.post("/", auth, (req, res) => {
   res.status(201).json(newPet);
 });
 
-// ✅ Delete a pet
 router.delete("/:id", auth, (req, res) => {
   const { id } = req.params;
 
@@ -49,7 +63,6 @@ router.delete("/:id", auth, (req, res) => {
   res.json(deleted);
 });
 
-// ✅ Update a pet (optional)
 router.put("/:id", auth, (req, res) => {
   const { id } = req.params;
   const index = pets.findIndex((p) => p.id === id);
