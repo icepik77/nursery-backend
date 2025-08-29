@@ -10,7 +10,7 @@ const router = Router();
 let pets: any[] = [];
 
 // ✅ Get all pets for a user
-router.get("/api/pets", auth, (req, res) => {
+router.get("/", auth, (req, res) => {
   const { userId } = req.query;
   if (!userId) return res.status(400).json({ error: "userId is required" });
 
@@ -19,7 +19,7 @@ router.get("/api/pets", auth, (req, res) => {
 });
 
 // ✅ Add a new pet
-router.post("/api/pets", auth, (req, res) => {
+router.post("/", auth, (req, res) => {
   const { user_id, ...petData } = req.body;
 
   if (!user_id || !petData.name) {
@@ -37,7 +37,7 @@ router.post("/api/pets", auth, (req, res) => {
 });
 
 // ✅ Delete a pet
-router.delete("/api/pets/:id", auth, (req, res) => {
+router.delete("/:id", auth, (req, res) => {
   const { id } = req.params;
 
   const index = pets.findIndex((p) => p.id === id);
@@ -50,7 +50,7 @@ router.delete("/api/pets/:id", auth, (req, res) => {
 });
 
 // ✅ Update a pet (optional)
-router.put("/api/pets/:id", auth, (req, res) => {
+router.put("/:id", auth, (req, res) => {
   const { id } = req.params;
   const index = pets.findIndex((p) => p.id === id);
   if (index === -1) return res.status(404).json({ error: "Pet not found" });
