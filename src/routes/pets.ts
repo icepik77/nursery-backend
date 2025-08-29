@@ -42,9 +42,9 @@ router.post("/", auth, (req, res) => {
   }
 
   const newPet = {
+    ...petData,
     id: uuidv4(),
     user_id,
-    ...petData,
   };
 
   pets.push(newPet);
