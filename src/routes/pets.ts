@@ -1,18 +1,62 @@
-import { Router } from "express";
-import { pool } from "../db";
-import { authMiddleware } from "../middleware/authMiddleware";
+import express, { Router, Request, Response } from "express";
+import bodyParser from "body-parser";
+import cors from "cors";
+import { v4 as uuidv4 } from "uuid";
+import { auth } from "../middleware/authMiddleware";
 
 const router = Router();
 
-router.get("/", authMiddleware, async (req, res) => {
-  const pets = await pool.query("SELECT * FROM pets WHERE user_id=$1", [(req as any).user.id]);
-  res.json(pets.rows);
+// In-memory "DB"
+let pets: any[] = [];
+
+// ✅ Get all pets for a user
+router.get("/api/pets", auth, (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ error: "userId is required" });
+
+  const userPets = pets.filter((p) => p.user_id === userId);
+  res.json(userPets);
 });
 
-router.post("/", authMiddleware, async (req, res) => {
-  const { name } = req.body;
-  await pool.query("INSERT INTO pets (user_id, name) VALUES ($1, $2)", [(req as any).user.id, name]);
-  res.json({ message: "Pet created" });
+// ✅ Add a new pet
+router.post("/api/pets", auth, (req, res) => {
+  const { user_id, ...petData } = req.body;
+
+  if (!user_id || !petData.name) {
+    return res.status(400).json({ error: "user_id and name are required" });
+  }
+
+  const newPet = {
+    id: uuidv4(),
+    user_id,
+    ...petData,
+  };
+
+  pets.push(newPet);
+  res.status(201).json(newPet);
+});
+
+// ✅ Delete a pet
+router.delete("/api/pets/:id", auth, (req, res) => {
+  const { id } = req.params;
+
+  const index = pets.findIndex((p) => p.id === id);
+  if (index === -1) {
+    return res.status(404).json({ error: "Pet not found" });
+  }
+
+  const deleted = pets.splice(index, 1)[0];
+  res.json(deleted);
+});
+
+// ✅ Update a pet (optional)
+router.put("/api/pets/:id", auth, (req, res) => {
+  const { id } = req.params;
+  const index = pets.findIndex((p) => p.id === id);
+  if (index === -1) return res.status(404).json({ error: "Pet not found" });
+
+  pets[index] = { ...pets[index], ...req.body };
+  res.json(pets[index]);
 });
 
 export default router;

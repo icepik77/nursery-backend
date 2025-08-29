@@ -11,7 +11,10 @@ app.use("/uploads", express.static("uploads"));
 
 // Маршруты
 import authRoutes from "./routes/auth";
+import petRoutes from './routes/pets';
+
 app.use("/api/auth", authRoutes);
+app.use("/api/pets", petRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
