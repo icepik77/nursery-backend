@@ -1,93 +1,114 @@
-// src/routes/note.ts
 import { Router, Request, Response } from "express";
-import { v4 as uuidv4 } from "uuid";
 import { auth } from "../middleware/authMiddleware";
+import { pool } from "../db";
+import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
 
-export type Note = {
+// Тип заметки
+export type PetNote = {
   id: string;
-  pet_id: string;     // ✅ link to pet
-  user_id: string;    // ✅ owner
-  title: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
+  pet_id: string;
+  text: string;
+  created_at?: Date;
+  updated_at?: Date;
 };
 
-let notes: Note[] = [];
+// -------------------------
+// Получить все заметки питомца
+// -------------------------
+router.get("/", auth, async (req: Request, res: Response) => {
+  const { petId } = req.query;
+  if (!petId) return res.status(400).json({ error: "petId required" });
 
-/**
- * GET /api/notes?userId=...&petId=...
- * Get all notes for a specific user (and optionally for a pet)
- */
-router.get("/", auth, (req: Request, res: Response) => {
-  const { userId, petId } = req.query;
-  if (!userId) return res.status(400).json({ error: "userId is required" });
-
-  let userNotes = notes.filter((n) => n.user_id === userId);
-
-  if (petId) {
-    userNotes = userNotes.filter((n) => n.pet_id === petId);
-  }
-
-  res.json(userNotes);
+  const result = await pool.query(
+    "SELECT * FROM pet_notes WHERE pet_id = $1 ORDER BY created_at DESC",
+    [petId]
+  );
+  res.json(result.rows);
 });
 
-/**
- * POST /api/notes
- * Create a new note for a pet
- */
-router.post("/", auth, (req: Request, res: Response) => {
-  const { user_id, pet_id, title, content } = req.body;
+// -------------------------
+// Добавить новую заметку
+// -------------------------
+router.post("/", auth, async (req: Request, res: Response) => {
+  const { pet_id, text } = req.body as { pet_id?: string; text?: string };
 
-  if (!user_id || !pet_id || !title) {
-    return res.status(400).json({ error: "user_id, pet_id and title are required" });
+  if (!pet_id || !text) {
+    return res.status(400).json({ error: "pet_id и text обязательны" });
   }
 
-  const newNote: Note = {
+  const newNote: PetNote = {
     id: uuidv4(),
-    user_id,
     pet_id,
-    title,
-    content: content || "",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    text,
+    created_at: new Date(),
   };
 
-  notes.push(newNote);
-  res.status(201).json(newNote);
+  try {
+    const result = await pool.query(
+      `INSERT INTO pet_notes(id, pet_id, text, created_at)
+       VALUES($1, $2, $3, $4)
+       RETURNING *`,
+      [newNote.id, newNote.pet_id, newNote.text, newNote.created_at]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Ошибка сервера при добавлении заметки" });
+  }
 });
 
-/**
- * PUT /api/notes/:id
- * Update a note
- */
-router.put("/:id", auth, (req: Request, res: Response) => {
+// -------------------------
+// Обновить заметку
+// -------------------------
+router.put("/:id", auth, async (req: Request, res: Response) => {
   const { id } = req.params;
-  const index = notes.findIndex((n) => n.id === id);
-  if (index === -1) return res.status(404).json({ error: "Note not found" });
+  const { text } = req.body as { text?: string };
 
-  notes[index] = {
-    ...notes[index],
-    ...req.body,
-    updatedAt: new Date().toISOString(),
-  };
+  if (!text) return res.status(400).json({ error: "text обязателен" });
 
-  res.json(notes[index]);
+  try {
+    const result = await pool.query(
+      `UPDATE pet_notes
+       SET text = $1, updated_at = now()
+       WHERE id = $2
+       RETURNING *`,
+      [text, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Заметка не найдена" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Ошибка сервера при обновлении заметки" });
+  }
 });
 
-/**
- * DELETE /api/notes/:id
- * Delete a note
- */
-router.delete("/:id", auth, (req: Request, res: Response) => {
+// -------------------------
+// Удалить заметку
+// -------------------------
+router.delete("/:id", auth, async (req: Request, res: Response) => {
   const { id } = req.params;
-  const index = notes.findIndex((n) => n.id === id);
-  if (index === -1) return res.status(404).json({ error: "Note not found" });
 
-  const deleted = notes.splice(index, 1)[0];
-  res.json(deleted);
+  try {
+    const result = await pool.query(
+      "DELETE FROM pet_notes WHERE id = $1 RETURNING *",
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Заметка не найдена" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Ошибка сервера при удалении заметки" });
+  }
 });
 
 export default router;
