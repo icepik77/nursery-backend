@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { pool } from "../db";
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
+import jwt, { JwtPayload } from "jsonwebtoken";
 
 const router = Router();
 
@@ -69,6 +69,36 @@ router.post("/login", async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.get("/me", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: "No token provided" });
+
+    const token = authHeader.split(" ")[1];
+    if (!token) return res.status(401).json({ error: "Invalid token format" });
+
+    const secret = process.env.JWT_SECRET;
+    if (!secret) throw new Error("JWT_SECRET is not defined");
+
+    // Типизация payload
+    interface MyJwtPayload extends JwtPayload {
+      id: string;
+      email: string;
+    }
+
+    const decoded = jwt.verify(token, secret) as MyJwtPayload;
+
+    // decoded.id и decoded.email теперь доступны
+    const result = await pool.query("SELECT id, email FROM users WHERE id=$1", [decoded.id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: "User not found" });
+
+    return res.json({ user: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    return res.status(401).json({ error: "Unauthorized" });
   }
 });
 
