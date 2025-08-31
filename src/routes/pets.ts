@@ -48,11 +48,7 @@ router.post("/", auth, async (req: Request, res: Response) => {
     return res.status(400).json({ error: "user_id and name are required" });
   }
 
-  const newPet: Pet = {
-    id: uuidv4(),
-    user_id,
-    ...petData,
-  };
+  const newPet = { ...petData, id: uuidv4(), user_id, };
 
   try {
     const columns = Object.keys(newPet);
