@@ -102,4 +102,55 @@ router.get("/me", async (req, res) => {
   }
 });
 
+router.patch("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { login, avatar } = req.body as { login?: string; avatar?: string };
+
+    if (!login && !avatar) {
+      return res.status(400).json({ error: "Nothing to update" });
+    }
+
+    const result = await pool.query(
+      "UPDATE users SET login = COALESCE($1, login), avatar = COALESCE($2, avatar) WHERE id = $3 RETURNING id, email, login, avatar",
+      [login, avatar, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.patch("/:id/password", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body as { password?: string };
+
+    if (!password) return res.status(400).json({ error: "Password required" });
+
+    const rounds = Number(process.env.BCRYPT_ROUNDS || 10);
+    const hash = await bcrypt.hash(password, rounds);
+
+    const result = await pool.query(
+      "UPDATE users SET password = $1 WHERE id = $2 RETURNING id, email, login, avatar",
+      [hash, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.json({ message: "Password updated successfully" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 export default router;
