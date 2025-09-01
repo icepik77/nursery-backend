@@ -7,36 +7,49 @@ const router = Router();
 
 router.post("/register", async (req, res) => {
   try {
-    const { email, password } = req.body as { email?: string; password?: string };
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password required" });
+    const { login, email, password } = req.body as {
+      login?: string;
+      email?: string;
+      password?: string;
+    };
+
+    if (!login || !email || !password) {
+      return res.status(400).json({ error: "Login, email and password required" });
     }
 
-    // normalize email
     const normalizedEmail = email.trim().toLowerCase();
+    const normalizedLogin = login.trim();
 
-    // check unique
-    const exists = await pool.query("SELECT 1 FROM users WHERE email = $1", [normalizedEmail]);
-    if (exists.rowCount) {
+    // проверка уникальности email
+    const existsEmail = await pool.query("SELECT 1 FROM users WHERE email=$1", [normalizedEmail]);
+    if (existsEmail.rowCount) {
       return res.status(400).json({ error: "Email already registered" });
+    }
+
+    // проверка уникальности login
+    const existsLogin = await pool.query("SELECT 1 FROM users WHERE login=$1", [normalizedLogin]);
+    if (existsLogin.rowCount) {
+      return res.status(400).json({ error: "Login already taken" });
     }
 
     const rounds = Number(process.env.BCRYPT_ROUNDS || 10);
     const hash = await bcrypt.hash(password, rounds);
 
+    // сохраняем пользователя с login
     const inserted = await pool.query(
-      "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id, email",
-      [normalizedEmail, hash]
+      "INSERT INTO users (login, email, password) VALUES ($1, $2, $3) RETURNING id, login, email",
+      [normalizedLogin, normalizedEmail, hash]
     );
+
     const user = inserted.rows[0];
 
-    // auto-login after register (optional)
+    // автоматический логин после регистрации
     const secret = process.env.JWT_SECRET;
     if (!secret) throw new Error("JWT_SECRET is not defined");
 
-    const token = jwt.sign({ id: user.id, email: user.email }, secret, { expiresIn: "7d" });
+    const token = jwt.sign({ id: user.id, email: user.email, login: user.login }, secret, { expiresIn: "7d" });
 
-    return res.json({ message: "User registered", token, user: { id: user.id, email: user.email } });
+    return res.json({ message: "User registered", token, user });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Server error" });
