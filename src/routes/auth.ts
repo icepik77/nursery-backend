@@ -64,7 +64,10 @@ router.post("/login", async (req, res) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const result = await pool.query("SELECT id, email, password FROM users WHERE email=$1", [normalizedEmail]);
+    const result = await pool.query(
+      "SELECT id, email, password, login FROM users WHERE email=$1",
+      [normalizedEmail]
+    );
     if (result.rowCount === 0) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
@@ -106,10 +109,15 @@ router.get("/me", async (req, res) => {
     const decoded = jwt.verify(token, secret) as MyJwtPayload;
 
     // decoded.id и decoded.email теперь доступны
-    const result = await pool.query("SELECT id, email FROM users WHERE id=$1", [decoded.id]);
+    const result = await pool.query(
+      "SELECT id, email, login, avatar FROM users WHERE id=$1",
+      [decoded.id]
+    );
+
     if (result.rowCount === 0) return res.status(404).json({ error: "User not found" });
 
     return res.json({ user: result.rows[0] });
+
   } catch (err) {
     console.error(err);
     return res.status(401).json({ error: "Unauthorized" });
