@@ -23,6 +23,9 @@ app.use("/api/pets", petRoutes);
 app.use("/api/notes", noteRoutes);
 app.use("/api/medical", medicalRoutes);
 app.use("/api/events", eventRoutes);
+app.use("/uploads", express.static("uploads")); // чтобы раздавать картинки
+
+
 
 // ======== Socket.io ========
 const server = http.createServer(app); // оборачиваем Express в HTTP сервер

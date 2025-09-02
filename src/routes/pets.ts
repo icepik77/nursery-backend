@@ -5,6 +5,23 @@ import { pool } from "../db";
 
 const router = Router();
 
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+// создаём папку uploads, если её нет
+const uploadDir = path.join(__dirname, "../uploads");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+
+// конфиг multer
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname)),
+});
+
+export const upload = multer({ storage });
+
+
 export type Pet = {
   id: string;
   user_id: string;
@@ -41,14 +58,22 @@ router.get("/", auth, async (req: Request, res: Response) => {
 });
 
 // Добавить нового питомца
-router.post("/", auth, async (req: Request, res: Response) => {
+router.post("/", auth, upload.single("image"), async (req: Request, res: Response) => {
   const { user_id, ...petData } = req.body;
 
   if (!user_id || !petData.name) {
     return res.status(400).json({ error: "user_id and name are required" });
   }
 
-  const newPet = { ...petData, id: uuidv4(), user_id, };
+  // путь к загруженному файлу
+  const imageUri = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const newPet = {
+    ...petData,
+    id: uuidv4(),
+    user_id,
+    imageuri: imageUri,
+  };
 
   try {
     const columns = Object.keys(newPet);
