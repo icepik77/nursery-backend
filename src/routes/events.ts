@@ -7,7 +7,7 @@ const router = Router();
 
 export type PetEvent = {
   id: string;
-  pet_id: string;
+  petId: string;
   title: string;
   event_date: string; // ISO date string
   created_at?: Date;
@@ -37,19 +37,19 @@ router.get("/", auth, async (req: Request, res: Response) => {
 // Добавить новое событие
 // -------------------------
 router.post("/", auth, async (req: Request, res: Response) => {
-  const { pet_id, title, event_date } = req.body as {
-    pet_id?: string;
+  const { petId: petId, title, event_date } = req.body as {
+    petId?: string;
     title?: string;
     event_date?: string;
   };
 
-  if (!pet_id || !title || !event_date) {
+  if (!petId || !title || !event_date) {
     return res.status(400).json({ error: "pet_id, title и event_date обязательны" });
   }
 
   const newEvent: PetEvent = {
     id: uuidv4(),
-    pet_id,
+    petId: petId,
     title,
     event_date,
     created_at: new Date(),
@@ -60,7 +60,7 @@ router.post("/", auth, async (req: Request, res: Response) => {
       `INSERT INTO pet_events(id, pet_id, title, event_date, created_at)
        VALUES($1, $2, $3, $4, $5)
        RETURNING *`,
-      [newEvent.id, newEvent.pet_id, newEvent.title, newEvent.event_date, newEvent.created_at]
+      [newEvent.id, newEvent.petId, newEvent.title, newEvent.event_date, newEvent.created_at]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
