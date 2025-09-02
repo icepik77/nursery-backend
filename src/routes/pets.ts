@@ -65,14 +65,13 @@ router.post("/", auth, upload.single("image"), async (req: Request, res: Respons
     return res.status(400).json({ error: "user_id and name are required" });
   }
 
-  // путь к загруженному файлу
-  const imageUri = req.file ? `/uploads/${req.file.filename}` : null;
+    const imageUri = req.file ? `/uploads/${req.file.filename}` : null;
 
   const newPet = {
     ...petData,
     id: uuidv4(),
     userId,
-    imageuri: imageUri,
+    imageUri, // ✅ camelCase
   };
 
   try {
