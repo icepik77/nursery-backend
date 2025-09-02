@@ -59,9 +59,9 @@ router.get("/", auth, async (req: Request, res: Response) => {
 
 // Добавить нового питомца
 router.post("/", auth, upload.single("image"), async (req: Request, res: Response) => {
-  const { user_id, ...petData } = req.body;
+  const { userId, ...petData } = req.body;
 
-  if (!user_id || !petData.name) {
+  if (!userId || !petData.name) {
     return res.status(400).json({ error: "user_id and name are required" });
   }
 
@@ -71,7 +71,7 @@ router.post("/", auth, upload.single("image"), async (req: Request, res: Respons
   const newPet = {
     ...petData,
     id: uuidv4(),
-    user_id,
+    userId,
     imageuri: imageUri,
   };
 
@@ -79,6 +79,10 @@ router.post("/", auth, upload.single("image"), async (req: Request, res: Respons
     const columns = Object.keys(newPet);
     const values = Object.values(newPet);
     const placeholders = columns.map((_, idx) => `$${idx + 1}`).join(", ");
+
+    console.log(req.file);
+    console.log(req.body);
+
 
     const query = `INSERT INTO pets(${columns.join(", ")})
                    VALUES(${placeholders}) RETURNING *`;
