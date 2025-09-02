@@ -15,12 +15,14 @@ app.use("/uploads", express.static("uploads"));
 import authRoutes from "./routes/auth";
 import petRoutes from './routes/pets';
 import noteRoutes from './routes/notes';
-import medical from './routes/medical';
+import medicalRoutes from './routes/medical';
+import eventRoutes from './routes/events';
 
 app.use("/api/auth", authRoutes);
 app.use("/api/pets", petRoutes);
 app.use("/api/notes", noteRoutes);
-app.use("/api/medical", medical);
+app.use("/api/medical", medicalRoutes);
+app.use("/api/events", eventRoutes);
 
 // ======== Socket.io ========
 const server = http.createServer(app); // оборачиваем Express в HTTP сервер
