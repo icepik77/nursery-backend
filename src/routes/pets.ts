@@ -2,25 +2,12 @@ import { Router, Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { auth } from "../middleware/authMiddleware";
 import { pool } from "../db";
-
-const router = Router();
-
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { upload } from "../config/multer";
 
-// создаём папку uploads, если её нет
-const uploadDir = path.join(__dirname, "../uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-
-// конфиг multer
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname)),
-});
-
-export const upload = multer({ storage });
-
+const router = Router();
 
 export type Pet = {
   id: string;
@@ -65,13 +52,15 @@ router.post("/", auth, upload.single("image"), async (req: Request, res: Respons
     return res.status(400).json({ error: "user_id and name are required" });
   }
 
-  const imageUri = req.file ? `/uploads/${req.file.filename}` : null;
+  const imageUri = req.file 
+    ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
+    : null;
 
   const newPet = {
     ...petData,
     id: uuidv4(),
-    user_id,   // ✅ snake_case как в БД
-    imageuri: imageUri,
+    user_id,
+    imageuri: imageUri, // ✅ соответствует колонке в БД
   };
 
   try {
