@@ -17,13 +17,16 @@ import petRoutes from './routes/pets';
 import noteRoutes from './routes/notes';
 import medicalRoutes from './routes/medical';
 import eventRoutes from './routes/events';
+import documentRoutes from './routes/files';
 
 app.use("/api/auth", authRoutes);
 app.use("/api/pets", petRoutes);
 app.use("/api/notes", noteRoutes);
 app.use("/api/medical", medicalRoutes);
 app.use("/api/events", eventRoutes);
+app.use("/api/files", documentRoutes);
 app.use("/uploads", express.static("uploads")); // чтобы раздавать картинки
+
 
 
 
