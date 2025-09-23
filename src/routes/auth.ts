@@ -1,9 +1,22 @@
-import { Router } from "express";
+import express, { Router, Request, Response } from "express";
 import { pool } from "../db";
+import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcrypt";
 import jwt, { JwtPayload } from "jsonwebtoken";
+import multer from "multer";
+import { auth } from "../middleware/authMiddleware";
+import path from "path";
 
 const router = Router();
+
+const storage = multer.diskStorage({
+  destination: "uploads/avatar",
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${uuidv4()}${ext}`);
+  },
+});
+const upload = multer({ storage });
 
 router.post("/register", async (req, res) => {
   try {
@@ -123,28 +136,36 @@ router.get("/me", async (req, res) => {
   }
 });
 
-router.patch("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { login, avatar } = req.body as { login?: string; avatar?: string };
+router.put("/:id", auth, upload.single("avatar"), async (req, res) => {
+  const { id } = req.params;
+  const { login } = req.body;
 
-    if (!login && !avatar) {
-      return res.status(400).json({ error: "Nothing to update" });
+  try {
+    const avatarPath = req.file
+      ? `${req.protocol}://${req.get("host")}/uploads/avatar/${req.file.filename}`
+      : undefined;
+
+    if (!login && !avatarPath) {
+      return res.status(400).json({ error: "Нет данных для обновления" });
     }
 
     const result = await pool.query(
-      "UPDATE users SET login = COALESCE($1, login), avatar = COALESCE($2, avatar) WHERE id = $3 RETURNING id, email, login, avatar",
-      [login, avatar, id]
+      `UPDATE users
+       SET login = COALESCE($1, login),
+           avatar = COALESCE($2, avatar)
+       WHERE id = $3
+       RETURNING id, email, login, avatar`,
+      [login, avatarPath, id]
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: "Пользователь не найден" });
     }
 
-    return res.json(result.rows[0]);
+    res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Server error" });
+    console.error("Ошибка обновления аватара", err);
+    res.status(500).json({ error: "Ошибка сервера при обновлении аватара" });
   }
 });
 
