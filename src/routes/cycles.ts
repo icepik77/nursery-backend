@@ -9,8 +9,9 @@ export type PetCycle = {
   id: string;
   petId: string;
   start_date: string;
-  end_date?: string | null;   // ⬅️ allow null/undefined
+  end_date?: string | null;
   note?: string | null;
+  period_days: number; // ⬅️ оставляем только период
   created_at?: Date;
   updated_at?: Date;
 };
@@ -43,11 +44,12 @@ router.get("/", auth, async (req: Request, res: Response) => {
 // Добавить новый цикл
 // -------------------------------------------------------
 router.post("/", auth, async (req: Request, res: Response) => {
-  const { petId, start_date, end_date, note } = req.body as {
+  const { petId, start_date, end_date, note, period_days } = req.body as {
     petId?: string;
     start_date?: string;
     end_date?: string;
     note?: string;
+    period_days?: number;
   };
 
   if (!petId || !start_date) {
@@ -58,23 +60,25 @@ router.post("/", auth, async (req: Request, res: Response) => {
     id: uuidv4(),
     petId,
     start_date,
-    end_date: end_date ?? null,   // ✅ convert undefined → null
-    note: note ?? null,           // ✅
+    end_date: end_date ?? null,
+    note: note ?? null,
+    period_days: period_days ?? 180, // дефолтное значение
     created_at: new Date(),
   };
 
   try {
     const result = await pool.query(
       `INSERT INTO pet_cycles
-         (id, pet_id, start_date, end_date, note, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6)
+         (id, pet_id, start_date, end_date, note, period_days, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
        RETURNING *`,
       [
         newCycle.id,
         newCycle.petId,
         newCycle.start_date,
-        newCycle.end_date || null,
-        newCycle.note || null,
+        newCycle.end_date,
+        newCycle.note,
+        newCycle.period_days,
         newCycle.created_at,
       ]
     );
@@ -91,28 +95,30 @@ router.post("/", auth, async (req: Request, res: Response) => {
 // -------------------------------------------------------
 router.put("/:id", auth, async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { start_date, end_date, note } = req.body as {
+  const { start_date, end_date, note, period_days } = req.body as {
     start_date?: string;
     end_date?: string;
     note?: string;
+    period_days?: number;
   };
 
-  if (!start_date && !end_date && !note) {
-    return res
-      .status(400)
-      .json({ error: "Нужно передать хотя бы одно поле (start_date, end_date или note)" });
+  if (!start_date && !end_date && !note && !period_days) {
+    return res.status(400).json({
+      error: "Нужно передать хотя бы одно поле для обновления (start_date, end_date, note, period_days)",
+    });
   }
 
   try {
     const result = await pool.query(
       `UPDATE pet_cycles
-          SET start_date = COALESCE($1, start_date),
-              end_date   = COALESCE($2, end_date),
-              note       = COALESCE($3, note),
-              updated_at = now()
-        WHERE id = $4
+          SET start_date  = COALESCE($1, start_date),
+              end_date    = COALESCE($2, end_date),
+              note        = COALESCE($3, note),
+              period_days = COALESCE($4, period_days),
+              updated_at  = now()
+        WHERE id = $5
         RETURNING *`,
-      [start_date, end_date, note, id]
+      [start_date, end_date, note, period_days, id]
     );
 
     if (result.rows.length === 0) {

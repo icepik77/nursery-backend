@@ -78,7 +78,7 @@ router.post("/login", async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase();
     const result = await pool.query(
-      "SELECT id, email, password, login FROM users WHERE email=$1",
+      "SELECT id, email, password, login, avatar FROM users WHERE email=$1",
       [normalizedEmail]
     );
     if (result.rowCount === 0) {
@@ -94,7 +94,7 @@ router.post("/login", async (req, res) => {
 
     const token = jwt.sign({ id: user.id, email: user.email }, secret, { expiresIn: "7d" });
 
-    return res.json({ token, user: { id: user.id, email: user.email, login: user.login } });
+    return res.json({ token, user: { id: user.id, email: user.email, login: user.login, avatar: user.avatar } });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Server error" });
@@ -127,6 +127,8 @@ router.get("/me", async (req, res) => {
     );
 
     if (result.rowCount === 0) return res.status(404).json({ error: "User not found" });
+
+    console.log("result", result); 
 
     return res.json({ user: result.rows[0] });
 

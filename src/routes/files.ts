@@ -56,11 +56,13 @@ router.post("/", auth, upload.single("file"), async (req: Request, res: Response
   const newFile = {
     id: uuidv4(),
     pet_id,
-    name: req.file.originalname,
+    name: decodeURIComponent(req.file.originalname),
     uri: `${req.protocol}://${req.get("host")}/uploads/files/${req.file.filename}`,
     type: req.file.mimetype,
     size: req.file.size,
   };
+
+  console.log("req.file.originalname", req.file.originalname); 
 
   try {
     const cols = Object.keys(newFile);
