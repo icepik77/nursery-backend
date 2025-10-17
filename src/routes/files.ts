@@ -62,8 +62,6 @@ router.post("/", auth, upload.single("file"), async (req: Request, res: Response
     size: req.file.size,
   };
 
-  console.log("req.file.originalname", req.file.originalname); 
-
   try {
     const cols = Object.keys(newFile);
     const vals = Object.values(newFile);
