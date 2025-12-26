@@ -24,6 +24,9 @@ import eventRoutes from './routes/events';
 import documentRoutes from './routes/files';
 import cycleRoutes from './routes/cycles';
 import chatRoutes from './routes/chat';
+import orderRoutes from './routes/orders';
+import productRoutes from './routes/products'; 
+
 import { pool } from "./db";
 
 app.use("/api/auth", authRoutes);
@@ -34,10 +37,9 @@ app.use("/api/events", eventRoutes);
 app.use("/api/cycles", cycleRoutes);
 app.use("/api/files", documentRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/orders", orderRoutes);
+app.use("/api/products", productRoutes);
 app.use("/uploads", express.static("uploads")); // чтобы раздавать картинки
-
-
-
 
 
 // ======== Socket.io ========

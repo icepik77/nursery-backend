@@ -20,47 +20,88 @@ const upload = multer({ storage });
 
 router.post("/register", async (req, res) => {
   try {
-    const { login, email, password } = req.body as {
-      login?: string;
-      email?: string;
-      password?: string;
-    };
+    const {
+      role = "individual",
+      login,
+      email,
+      password,
+      fullname,
+      address,
+      inn,
+      phone,
+      contact_email
+    } = req.body;
 
     if (!login || !email || !password) {
-      return res.status(400).json({ error: "Login, email and password required" });
+      return res.status(400).json({
+        error: "Login, email and password are required"
+      });
+    }
+
+    if (!["individual", "company"].includes(role)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
+    // Проверка обязательных полей для юр лица
+    if (role === "company") {
+      if (!fullname || !address || !inn || !phone || !contact_email) {
+        return res.status(400).json({
+          error: "Fullname, address, INN, phone and contact_email are required for company"
+        });
+      }
     }
 
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedLogin = login.trim();
 
-    // проверка уникальности email
-    const existsEmail = await pool.query("SELECT 1 FROM users WHERE email=$1", [normalizedEmail]);
+    const existsEmail = await pool.query(
+      "SELECT 1 FROM users WHERE email=$1",
+      [normalizedEmail]
+    );
     if (existsEmail.rowCount) {
       return res.status(400).json({ error: "Email already registered" });
     }
 
-    // проверка уникальности login
-    const existsLogin = await pool.query("SELECT 1 FROM users WHERE login=$1", [normalizedLogin]);
+    const existsLogin = await pool.query(
+      "SELECT 1 FROM users WHERE login=$1",
+      [normalizedLogin]
+    );
     if (existsLogin.rowCount) {
       return res.status(400).json({ error: "Login already taken" });
     }
 
-    const rounds = Number(process.env.BCRYPT_ROUNDS || 10);
-    const hash = await bcrypt.hash(password, rounds);
+    const hash = await bcrypt.hash(password, 10);
 
-    // сохраняем пользователя с login
     const inserted = await pool.query(
-      "INSERT INTO users (login, email, password) VALUES ($1, $2, $3) RETURNING id, login, email",
-      [normalizedLogin, normalizedEmail, hash]
+      `INSERT INTO users
+       (login, email, password, role, fullname, address, inn, phone, contact_email)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING id, login, email, role`,
+      [
+        normalizedLogin,
+        normalizedEmail,
+        hash,
+        role,
+        fullname || null,
+        address || null,
+        inn || null,
+        phone || null,
+        contact_email || null
+      ]
     );
 
     const user = inserted.rows[0];
 
-    // автоматический логин после регистрации
     const secret = process.env.JWT_SECRET;
-    if (!secret) throw new Error("JWT_SECRET is not defined");
+    if (!secret) {
+      throw new Error("JWT_SECRET is not defined");
+    }
 
-    const token = jwt.sign({ id: user.id, email: user.email, login: user.login }, secret, { expiresIn: "7d" });
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      secret,
+      { expiresIn: "7d" }
+    );
 
     return res.json({ message: "User registered", token, user });
   } catch (err) {
@@ -72,6 +113,7 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body as { email?: string; password?: string };
+
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password required" });
     }
