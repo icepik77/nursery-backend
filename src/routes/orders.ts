@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
+import { auth } from "../middleware/authMiddleware";
 
 
 const router = Router();
@@ -13,7 +14,8 @@ router.post("/", async (req, res) => {
   const client = await pool.connect();
 
   try {
-    const { userId, phone, email, address, items } = req.body;
+    const { user_id, phone, email, address, items } = req.body;
+    console.log("user_id", user_id);
 
     if (!phone || !email || !address || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: "Invalid order data" });
@@ -54,7 +56,7 @@ router.post("/", async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, 'pending')
       RETURNING id, created_at
       `,
-      [userId ?? null, phone, email, address, total]
+      [user_id ?? null, phone, email, address, total]
     );
 
     const orderId = orderResult.rows[0].id;
@@ -92,9 +94,10 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.get("/", async (req, res) => {
+router.get("/", auth, async (req, res) => {
   try {
-    const userId = req.user?.id; // если есть auth middleware
+    const userId = req.user!.id; // ✅ no error
+    console.log("userId", userId);
 
     const result = await pool.query(
       `

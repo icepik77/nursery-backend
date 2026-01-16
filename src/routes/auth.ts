@@ -114,6 +114,9 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body as { email?: string; password?: string };
 
+    console.log("email", email);
+    console.log("password", password);
+
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password required" });
     }
