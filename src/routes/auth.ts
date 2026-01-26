@@ -6,6 +6,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import multer from "multer";
 import { auth } from "../middleware/authMiddleware";
 import path from "path";
+import { generateAccessToken, generateRefreshToken } from "../middleware/tokens"; 
 
 const router = Router();
 
@@ -42,7 +43,6 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ error: "Invalid role" });
     }
 
-    // Проверка обязательных полей для юр лица
     if (role === "company") {
       if (!fullname || !address || !inn || !phone || !contact_email) {
         return res.status(400).json({
@@ -54,20 +54,13 @@ router.post("/register", async (req, res) => {
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedLogin = login.trim();
 
-    const existsEmail = await pool.query(
-      "SELECT 1 FROM users WHERE email=$1",
-      [normalizedEmail]
+    const exists = await pool.query(
+      "SELECT 1 FROM users WHERE email=$1 OR login=$2",
+      [normalizedEmail, normalizedLogin]
     );
-    if (existsEmail.rowCount) {
-      return res.status(400).json({ error: "Email already registered" });
-    }
 
-    const existsLogin = await pool.query(
-      "SELECT 1 FROM users WHERE login=$1",
-      [normalizedLogin]
-    );
-    if (existsLogin.rowCount) {
-      return res.status(400).json({ error: "Login already taken" });
+    if (exists.rowCount) {
+      return res.status(400).json({ error: "User already exists" });
     }
 
     const hash = await bcrypt.hash(password, 10);
@@ -82,51 +75,60 @@ router.post("/register", async (req, res) => {
         normalizedEmail,
         hash,
         role,
-        fullname || null,
-        address || null,
-        inn || null,
-        phone || null,
-        contact_email || null
+        fullname?.trim() || null,
+        address?.trim() || null,
+        inn?.trim() || null,
+        phone?.trim() || null,
+        contact_email?.trim().toLowerCase() || null
       ]
     );
 
     const user = inserted.rows[0];
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error("JWT_SECRET is not defined");
-    }
+    const payload = { id: user.id, email: user.email, role: user.role };
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      secret,
-      { expiresIn: "7d" }
-    );
+    const accessToken = generateAccessToken(payload);
+    const refreshToken = generateRefreshToken({ id: user.id });
 
-    return res.json({ message: "User registered", token, user });
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    return res.json({
+      accessToken,
+      user
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Server error" });
   }
 });
 
+
+router.post("/logout", (_req, res) => {
+  res.clearCookie("refreshToken");
+  return res.json({ message: "Logged out" });
+});
+
+
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body as { email?: string; password?: string };
-
-    console.log("email", email);
-    console.log("password", password);
+    const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password required" });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
     const result = await pool.query(
-      "SELECT id, email, password, login, avatar FROM users WHERE email=$1",
-      [normalizedEmail]
+      "SELECT id, email, password, login, avatar, role FROM users WHERE email=$1",
+      [email.toLowerCase()]
     );
-    if (result.rowCount === 0) {
+
+    if (!result.rowCount) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
@@ -134,16 +136,52 @@ router.post("/login", async (req, res) => {
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) throw new Error("JWT_SECRET is not defined");
-    console.log("Okrs");
+    const payload = { id: user.id, email: user.email, role: user.role };
 
-    const token = jwt.sign({ id: user.id, email: user.email }, secret, { expiresIn: "7d" });
+    const accessToken = generateAccessToken(payload);
+    const refreshToken = generateRefreshToken({ id: user.id });
 
-    return res.json({ token, user: { id: user.id, email: user.email, login: user.login, avatar: user.avatar } });
+    res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000
+      });
+
+    return res.json({
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        login: user.login,
+        avatar: user.avatar
+      }
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/refresh", (req, res) => {
+  const token = req.cookies?.refreshToken;
+
+  if (!token) return res.status(401).json({ error: "No refresh token" });
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_REFRESH_SECRET!
+    ) as { id: string };
+
+    const newAccessToken = generateAccessToken({
+      id: decoded.id,
+      email: "",
+    });
+
+    return res.json({ accessToken: newAccessToken });
+  } catch (err) {
+    return res.status(403).json({ error: "Invalid refresh token" });
   }
 });
 
