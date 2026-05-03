@@ -12,7 +12,7 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "http://83.166.244.36:3000",
+    "http://46.173.18.164:3000",
     "https://yourdomain.com"
   ],
   credentials: true
@@ -33,6 +33,7 @@ import cycleRoutes from './routes/cycles';
 import chatRoutes from './routes/chat';
 import orderRoutes from './routes/orders';
 import productRoutes from './routes/products'; 
+import paymentRoutes from "./routes/payments";
 
 import { pool } from "./db";
 
@@ -46,6 +47,7 @@ app.use("/api/files", documentRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/products", productRoutes);
+app.use("api/payments", paymentRoutes);
 app.use("/uploads", express.static("uploads")); // чтобы раздавать картинки
 
 
