@@ -11,6 +11,7 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const multer_1 = __importDefault(require("multer"));
 const authMiddleware_1 = require("../middleware/authMiddleware");
 const path_1 = __importDefault(require("path"));
+const tokens_1 = require("../middleware/tokens");
 const router = (0, express_1.Router)();
 const storage = multer_1.default.diskStorage({
     destination: "uploads/avatar",
@@ -22,38 +23,67 @@ const storage = multer_1.default.diskStorage({
 const upload = (0, multer_1.default)({ storage });
 router.post("/register", async (req, res) => {
     try {
-        const { login, email, password } = req.body;
+        const { role = "individual", login, email, password, fullname, address, inn, phone, contact_email } = req.body;
         if (!login || !email || !password) {
-            return res.status(400).json({ error: "Login, email and password required" });
+            return res.status(400).json({
+                error: "Login, email and password are required"
+            });
+        }
+        if (!["individual", "company"].includes(role)) {
+            return res.status(400).json({ error: "Invalid role" });
+        }
+        if (role === "company") {
+            if (!fullname || !address || !inn || !phone || !contact_email) {
+                return res.status(400).json({
+                    error: "Fullname, address, INN, phone and contact_email are required for company"
+                });
+            }
         }
         const normalizedEmail = email.trim().toLowerCase();
         const normalizedLogin = login.trim();
-        // проверка уникальности email
-        const existsEmail = await db_1.pool.query("SELECT 1 FROM users WHERE email=$1", [normalizedEmail]);
-        if (existsEmail.rowCount) {
-            return res.status(400).json({ error: "Email already registered" });
+        const exists = await db_1.pool.query("SELECT 1 FROM users WHERE email=$1 OR login=$2", [normalizedEmail, normalizedLogin]);
+        if (exists.rowCount) {
+            return res.status(400).json({ error: "User already exists" });
         }
-        // проверка уникальности login
-        const existsLogin = await db_1.pool.query("SELECT 1 FROM users WHERE login=$1", [normalizedLogin]);
-        if (existsLogin.rowCount) {
-            return res.status(400).json({ error: "Login already taken" });
-        }
-        const rounds = Number(process.env.BCRYPT_ROUNDS || 10);
-        const hash = await bcrypt_1.default.hash(password, rounds);
-        // сохраняем пользователя с login
-        const inserted = await db_1.pool.query("INSERT INTO users (login, email, password) VALUES ($1, $2, $3) RETURNING id, login, email", [normalizedLogin, normalizedEmail, hash]);
+        const hash = await bcrypt_1.default.hash(password, 10);
+        const inserted = await db_1.pool.query(`INSERT INTO users
+       (login, email, password, role, fullname, address, inn, phone, contact_email)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING id, login, email, role`, [
+            normalizedLogin,
+            normalizedEmail,
+            hash,
+            role,
+            fullname?.trim() || null,
+            address?.trim() || null,
+            inn?.trim() || null,
+            phone?.trim() || null,
+            contact_email?.trim().toLowerCase() || null
+        ]);
         const user = inserted.rows[0];
-        // автоматический логин после регистрации
-        const secret = process.env.JWT_SECRET;
-        if (!secret)
-            throw new Error("JWT_SECRET is not defined");
-        const token = jsonwebtoken_1.default.sign({ id: user.id, email: user.email, login: user.login }, secret, { expiresIn: "7d" });
-        return res.json({ message: "User registered", token, user });
+        const payload = { id: user.id, email: user.email, role: user.role };
+        const accessToken = (0, tokens_1.generateAccessToken)(payload);
+        const refreshToken = (0, tokens_1.generateRefreshToken)({ id: user.id });
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            path: "/",
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+        return res.json({
+            accessToken,
+            user
+        });
     }
     catch (err) {
         console.error(err);
         return res.status(500).json({ error: "Server error" });
     }
+});
+router.post("/logout", (_req, res) => {
+    res.clearCookie("refreshToken");
+    return res.json({ message: "Logged out" });
 });
 router.post("/login", async (req, res) => {
     try {
@@ -61,24 +91,52 @@ router.post("/login", async (req, res) => {
         if (!email || !password) {
             return res.status(400).json({ error: "Email and password required" });
         }
-        const normalizedEmail = email.trim().toLowerCase();
-        const result = await db_1.pool.query("SELECT id, email, password, login, avatar FROM users WHERE email=$1", [normalizedEmail]);
-        if (result.rowCount === 0) {
+        const result = await db_1.pool.query("SELECT id, email, password, login, avatar, role FROM users WHERE email=$1", [email.toLowerCase()]);
+        if (!result.rowCount) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
         const user = result.rows[0];
         const ok = await bcrypt_1.default.compare(password, user.password);
         if (!ok)
             return res.status(401).json({ error: "Invalid credentials" });
-        const secret = process.env.JWT_SECRET;
-        if (!secret)
-            throw new Error("JWT_SECRET is not defined");
-        const token = jsonwebtoken_1.default.sign({ id: user.id, email: user.email }, secret, { expiresIn: "7d" });
-        return res.json({ token, user: { id: user.id, email: user.email, login: user.login, avatar: user.avatar } });
+        const payload = { id: user.id, email: user.email, role: user.role };
+        const accessToken = (0, tokens_1.generateAccessToken)(payload);
+        const refreshToken = (0, tokens_1.generateRefreshToken)({ id: user.id });
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+        return res.json({
+            accessToken,
+            user: {
+                id: user.id,
+                email: user.email,
+                login: user.login,
+                avatar: user.avatar
+            }
+        });
     }
     catch (err) {
         console.error(err);
         return res.status(500).json({ error: "Server error" });
+    }
+});
+router.post("/refresh", (req, res) => {
+    const token = req.cookies?.refreshToken;
+    if (!token)
+        return res.status(401).json({ error: "No refresh token" });
+    try {
+        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_REFRESH_SECRET);
+        const newAccessToken = (0, tokens_1.generateAccessToken)({
+            id: decoded.id,
+            email: "",
+        });
+        return res.json({ accessToken: newAccessToken });
+    }
+    catch (err) {
+        return res.status(403).json({ error: "Invalid refresh token" });
     }
 });
 router.get("/me", async (req, res) => {

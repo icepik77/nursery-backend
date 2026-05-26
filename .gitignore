@@ -1,1 +1,22 @@
+# dependencies
+node_modules/
+
+# env
+.env
+.env.local
+.env.production
+.env.development
+
+# next
+.next/
+out/
+
+# uploads
 uploads/
+
+# logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

@@ -6,20 +6,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.auth = auth;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 function auth(req, res, next) {
-    const authHeader = req.headers.authorization || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token)
-        return res.status(401).json({ error: "No token" });
-    const secret = process.env.JWT_SECRET;
-    if (!secret)
-        throw new Error("JWT_SECRET is not defined");
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Missing Authorization header" });
+    }
+    const token = authHeader.slice(7);
     try {
-        const decoded = jsonwebtoken_1.default.verify(token, secret);
+        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_ACCESS_SECRET);
         req.user = decoded;
         next();
     }
-    catch {
-        return res.status(403).json({ error: "Invalid or expired token" });
+    catch (err) {
+        if (err.name === "TokenExpiredError") {
+            return res.status(401).json({ error: "Access token expired" });
+        }
+        return res.status(403).json({ error: "Invalid token" });
     }
 }
 //# sourceMappingURL=authMiddleware.js.map

@@ -12,7 +12,14 @@ const path_1 = __importDefault(require("path"));
 const uuid_1 = require("uuid");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-app.use((0, cors_1.default)());
+app.use((0, cors_1.default)({
+    origin: [
+        "http://localhost:3000",
+        "http://46.173.18.164:3000",
+        "https://yourdomain.com"
+    ],
+    credentials: true
+}));
 app.use(express_1.default.json());
 const uploadDir = path_1.default.join(__dirname, "../uploads"); // путь к папке относительно index.ts
 app.use("/uploads", express_1.default.static(uploadDir));
@@ -25,6 +32,9 @@ const events_1 = __importDefault(require("./routes/events"));
 const files_1 = __importDefault(require("./routes/files"));
 const cycles_1 = __importDefault(require("./routes/cycles"));
 const chat_1 = __importDefault(require("./routes/chat"));
+const orders_1 = __importDefault(require("./routes/orders"));
+const products_1 = __importDefault(require("./routes/products"));
+const payments_1 = __importDefault(require("./routes/payments"));
 const db_1 = require("./db");
 app.use("/api/auth", auth_1.default);
 app.use("/api/pets", pets_1.default);
@@ -34,6 +44,9 @@ app.use("/api/events", events_1.default);
 app.use("/api/cycles", cycles_1.default);
 app.use("/api/files", files_1.default);
 app.use("/api/chat", chat_1.default);
+app.use("/api/orders", orders_1.default);
+app.use("/api/products", products_1.default);
+app.use("/api/payment", payments_1.default);
 app.use("/uploads", express_1.default.static("uploads")); // чтобы раздавать картинки
 // ======== Socket.io ========
 const server = http_1.default.createServer(app); // оборачиваем Express в HTTP сервер

@@ -47,7 +47,7 @@ app.use("/api/files", documentRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/products", productRoutes);
-app.use("api/payments", paymentRoutes);
+app.use("/api/payment", paymentRoutes);
 app.use("/uploads", express.static("uploads")); // чтобы раздавать картинки
 
 
